@@ -1,19 +1,23 @@
 {
-  "name": "autonomous-agent-bounty",
-  "version": "1.0.0",
-  "description": "Autonomous Agent for OOBE x Ace Data Cloud Bounty",
+  "name": "autonomous-ace-agent",
+  "version": "2.0.0",
+  "description": "Autonomous Agent for OOBE x Ace Data Cloud Bounty — AceDataCloud Usage Category",
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc",
     "start": "node dist/index.js",
-    "dev": "ts-node src/index.ts"
+    "dev": "ts-node src/index.ts",
+    "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@coral-xyz/anchor": "^0.29.0",
     "@oobe-protocol-labs/synapse-sap-sdk": "^0.9.3",
-    "@solana/web3.js": "^1.91.4",
-    "axios": "^1.6.8",
-    "dotenv": "^16.4.5"
+    "@coral-xyz/anchor": "^0.32.0",
+    "@solana/web3.js": "^1.95.0",
+    "@acedatacloud/sdk": "latest",
+    "@acedatacloud/x402-client": "latest",
+    "bs58": "^6.0.0",
+    "dotenv": "^16.4.5",
+    "axios": "^1.7.0"
   },
   "devDependencies": {
     "@types/node": "^20.12.7",

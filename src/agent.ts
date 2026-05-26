@@ -1,79 +1,71 @@
-import { SapClient } from "@oobe-protocol-labs/synapse-sap-sdk";
-import { AnchorProvider, Wallet } from "@coral-xyz/anchor";
-import { Connection, Keypair } from "@solana/web3.js";
-import bs58 from "bs58";
-import dotenv from "dotenv";
+import { SapConnection, SapClient } from "@oobe-protocol-labs/synapse-sap-sdk";
+import { Keypair } from "@solana/web3.js";
+import { loadKeypair } from "./wallet";
+import { config } from "./config";
 
-dotenv.config();
+export interface AgentContext {
+  client: SapClient;
+  keypair: Keypair;
+}
 
-export async function initAgent() {
-  const privateKey = process.env.SOLANA_PRIVATE_KEY;
-  if (!privateKey) {
-    throw new Error("SOLANA_PRIVATE_KEY is required in .env");
-  }
+/**
+ * Initialise the SAP agent:
+ *  1. Load keypair from env
+ *  2. Create SapClient via SapConnection.fromKeypair (correct SDK API)
+ *  3. Register agent on SAP mainnet (idempotent)
+ */
+export async function initAgent(): Promise<AgentContext> {
+  const keypair = loadKeypair(config.solanaPrivateKey);
+  console.log(`🔑 Agent wallet: ${keypair.publicKey.toBase58()}`);
 
-  // Parse keypair from base58 or JSON array
-  let keypair: Keypair;
+  // SapConnection.fromKeypair is the correct factory — compatible with
+  // synapse-client-sdk and the OOBE Protocol RPC.
+  const { client } = SapConnection.fromKeypair(config.synapseRpcUrl, keypair);
+
+  // Register (idempotent — safe to call every startup)
   try {
-    if (privateKey.startsWith("[")) {
-      keypair = Keypair.fromSecretKey(Uint8Array.from(JSON.parse(privateKey)));
-    } else {
-      keypair = Keypair.fromSecretKey(bs58.decode(privateKey));
-    }
-  } catch (err) {
-    throw new Error("Failed to parse SOLANA_PRIVATE_KEY. Ensure it is a valid base58 string or JSON array.");
-  }
-
-  const rpcUrl = process.env.SYNAPSE_RPC_URL || "https://api.devnet.solana.com";
-  const connection = new Connection(rpcUrl, "confirmed");
-  const wallet = new Wallet(keypair);
-  
-  const provider = new AnchorProvider(connection, wallet, {
-    preflightCommitment: "confirmed",
-  });
-
-  const client = SapClient.from(provider);
-
-  console.log(`Agent Wallet Address: ${wallet.publicKey.toBase58()}`);
-
-  // Register the agent on SAP if it hasn't been registered yet
-  try {
-    console.log("Registering Agent on Synapse Agent Protocol...");
+    console.log("📡 Registering agent on Synapse Agent Protocol (mainnet)…");
     await client.agent.register({
-      name: "AceDataWorker",
-      description: "Autonomous Agent executing Ace Data Cloud AI tasks via x402 payments",
+      name: "AceDataWorker-v2",
+      description:
+        "Autonomous AI agent that discovers tools via SAP, executes tasks " +
+        "using Ace Data Cloud services, and settles payments with x402 on Solana.",
       capabilities: [
         {
-          id: "acedata:completion",
+          id: "acedata:chat",
           protocolId: "acedata",
-          version: "1.0",
-          description: "Generates text completions using AI",
+          version: "2.0",
+          description: "AI chat completions via x402 payment",
         },
         {
-          id: "acedata:vision",
+          id: "acedata:image",
           protocolId: "acedata",
-          version: "1.0",
-          description: "Analyzes images using AI vision models",
+          version: "2.0",
+          description: "AI image generation via x402 payment",
         },
         {
-          id: "acedata:translate",
+          id: "acedata:audio",
           protocolId: "acedata",
-          version: "1.0",
-          description: "Translates text using AI",
-        }
+          version: "2.0",
+          description: "AI text-to-speech audio generation via x402 payment",
+        },
       ],
-      pricing: [], // Optional: add pricing if this agent charges for services
-      protocols: ["acedata", "A2A"],
+      pricing: [], // consuming agent — no price charged for incoming calls
+      protocols: ["acedata", "x402", "A2A"],
     });
-    console.log("Agent successfully registered!");
-  } catch (error: any) {
-    // If it's already registered, it might throw an error or we can check first.
-    if (error.message && error.message.includes("already in use")) {
-      console.log("Agent is already registered on SAP.");
+    console.log("✅ Agent registered on SAP!");
+  } catch (err: any) {
+    // "already in use" is expected on every restart after first run
+    if (
+      err?.message?.toLowerCase().includes("already") ||
+      err?.message?.toLowerCase().includes("in use") ||
+      err?.message?.toLowerCase().includes("exists")
+    ) {
+      console.log("ℹ️  Agent already registered — skipping.");
     } else {
-      console.error("Error during agent registration:", error);
+      console.warn("⚠️  Registration warning (non-fatal):", err?.message);
     }
   }
 
-  return { client, wallet };
+  return { client, keypair };
 }

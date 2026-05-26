@@ -1,30 +1,28 @@
 import { initAgent } from "./agent";
-import { runWorkflow } from "./workflow";
-
-// Run workflow every 5 minutes (300,000 ms)
-const WORKFLOW_INTERVAL_MS = 300000;
+import { runWorkflowLoop } from "./workflow";
+import { config } from "./config";
 
 async function main() {
-  console.log("Starting Autonomous Agent...");
+  console.log("🚀 Initializing Autonomous Agent...");
   
   try {
-    const { client } = await initAgent();
+    const { client, keypair } = await initAgent();
 
-    // Run immediately once
-    await runWorkflow(client);
+    // Run the workflow immediately
+    await runWorkflowLoop(client, keypair);
 
     // Schedule the recurring loop
-    console.log(`Scheduling workflow loop every ${WORKFLOW_INTERVAL_MS / 1000} seconds...`);
+    console.log(`\n⏳ Scheduling workflow loop every ${config.workflowIntervalMs / 1000} seconds...`);
     setInterval(async () => {
       try {
-        await runWorkflow(client);
-      } catch (err) {
-        console.error("Error in workflow loop:", err);
+        await runWorkflowLoop(client, keypair);
+      } catch (err: any) {
+        console.error("❌ Unhandled error in workflow loop:", err?.message);
       }
-    }, WORKFLOW_INTERVAL_MS);
+    }, config.workflowIntervalMs);
 
-  } catch (error) {
-    console.error("Failed to initialize agent:", error);
+  } catch (error: any) {
+    console.error("💥 Fatal initialization error:", error?.message);
     process.exit(1);
   }
 }
